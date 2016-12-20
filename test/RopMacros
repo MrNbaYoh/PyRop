@@ -1,0 +1,22 @@
+include("RopConstants")
+
+@macro
+def POP_R0PC(r0):
+    put_label("Label")
+    add_word(ROP_POP_R0PC)
+    add_word("Label")
+    POP_POP(r0)
+
+@macro
+def POP_POP(r7):
+    add_word("Label")
+
+@pop_macro
+def TEST1(r0):
+    add_word(0x10101010)
+    add_word(r0)
+
+@pop_macro
+def TEST(r7):
+    add_word(0x20202020)
+    add_word(r7)

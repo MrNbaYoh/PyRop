@@ -1,0 +1,13 @@
+include("RopMacros")
+
+put_label("Label")
+POP_R0PC("Label")
+
+begin_area(0x8)
+
+add_word(0xFFFFFFFF)
+add_word(0xFFFFFFFF)
+
+end_area()
+add_ascii("TEST")
+pop(r0=0, r7=0)
