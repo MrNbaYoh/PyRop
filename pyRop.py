@@ -1,4 +1,5 @@
 import sys
+from ast import *
 from builder_base import *
 from base_modules import *
 
@@ -8,6 +9,7 @@ if len(cmdargs) != 3:
 
 builder = create_builder('Test', AreaModule, LabelModule, PopModule)
 builder.build(cmdargs[1])
+print(builder.chain.chain)
 
 os.makedirs(os.path.dirname(cmdargs[2]), exist_ok=True)
 output_file = open(cmdargs[2], 'wb')

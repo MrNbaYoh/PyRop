@@ -1,7 +1,9 @@
 include("RopMacros")
 
+POP_R0PC(Label)
+add_word(0xFFFFFFFF)
+add_word(Label)
 put_label("Label")
-POP_R0PC("Label")
 
 begin_area(0x8)
 

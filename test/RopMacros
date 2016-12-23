@@ -4,12 +4,12 @@ include("RopConstants")
 def POP_R0PC(r0):
     put_label("Label")
     add_word(ROP_POP_R0PC)
-    add_word("Label")
+    add_word(Label)
     POP_POP(r0)
 
 @macro
 def POP_POP(r7):
-    add_word("Label")
+    add_word(Label)
 
 @pop_macro
 def TEST1(r0):

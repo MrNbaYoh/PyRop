@@ -35,6 +35,9 @@ class LabelContext:
         self.locals = l_locals
         self.parent = parent
 
+    def setdefault(self, key, value):
+        self.locals.setdefault(key, value)
+
     def __getitem__(self, item):
         """
         Return the value associated to the label name in the nearest context that contains it.
@@ -100,6 +103,8 @@ class Macro:
         self.current_instance += 1
         return self.instance_contexts[self.current_instance - 1]
 
+from ast import *
+from inspect import *
 
 class LabelModule(BaseBuilder):
     def __init__(self):
@@ -107,15 +112,22 @@ class LabelModule(BaseBuilder):
 
         self.context_stack = []
 
-        self.global_context = LabelContext(None, dict())
+        self.global_context = dict()
         self.current_context = self.global_context
 
         self.macros = dict()
 
-    def add_value(self, word: int or str, byte_size: int = 4):
-        if type(word) is str:
-            word = self[word]
-        super().add_value(word, byte_size)
+    def load(self, file):
+        tree = parse(open(file).read(), "<ast>", 'exec')
+        for node in walk(tree):
+            if isinstance(node, Call) and node.func.id == "put_label" and node.args and isinstance(node.args[0], Str):
+                name = node.args[0].s
+                if name in self.global_context:
+                    raise NameError("Label name already used!")
+                self.global_context.setdefault(name, 0)
+        self.user_functions.update(self.global_context)
+        super().load(file)
+        self.user_functions.update(self.global_context)
 
     def __setitem__(self, name: str, address: int):
         """
@@ -128,15 +140,12 @@ class LabelModule(BaseBuilder):
         if self.chain.loaded:
             return
 
-        if name in self.current_context.locals:
-            raise NameError("Label name already used!")
-
         if address is None:
             address = self.chain.get_sp()
         elif address.bit_length() > 32:
             raise ValueError("Label address should be 32 bits long!")
 
-        self.current_context.locals[name] = address
+        self.current_context[name] = address
 
     def __getitem__(self, name):
         """
@@ -176,7 +185,7 @@ class LabelModule(BaseBuilder):
         """
         if context is None:
             context = dict()
-        self.macros[name].add_instance(LabelContext(self.current_context, context))
+        self.macros[name].add_instance(dict())
 
     def switch_context(self, context):
         """
@@ -196,6 +205,8 @@ class LabelModule(BaseBuilder):
 
     @user_function
     def put_label(self, name: str, address: int = None):
+        if type(name) is not str:
+            raise ValueError("Label name expected, " + type(name).__name__ + " was given!")
         self[name] = address
 
     @user_function
@@ -215,9 +226,24 @@ class LabelModule(BaseBuilder):
             if not self.chain.loaded:
                 self.add_macro_context(func.__name__)
                 self.switch_context(self.macros[func.__name__].get_last_instance())
+                tree = parse(getsource(func), "<ast>", 'exec')
+                for node in walk(tree):
+                    if isinstance(node, Call) and node.func.id == "put_label" and node.args and isinstance(node.args[0],
+                                                                                                           Str):
+                        name = node.args[0].s
+                        if name in self.current_context:
+                            raise NameError("Label name already used!")
+                        self.current_context.setdefault(name, 0)
+
             else:
                 self.switch_context(self.macros[func.__name__].get_next_instance())
+
+            old = func.__globals__.copy()
+            func.__globals__.update(self.current_context)
             func(*args, **kwargs)
+            func.__globals__.clear()
+            func.__globals__.update(old)
+
             self.restore_context()
 
         return wrapper
