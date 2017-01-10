@@ -341,16 +341,16 @@ class PopModule(BaseBuilder):
 
     @staticmethod
     def find_best(candidates, regs):
-        maxi = 0
         name = None
         best_rate = 0
+        total_pop = 16
         for func, infos in candidates.items():
             nb = len(regs & infos[1])
             rate = nb/infos[2]
             if nb == 0:
                 continue
-            if (nb >= maxi) and best_rate <= rate:
-                maxi = nb
+            if best_rate < rate or (best_rate == rate and len(infos[1]) <= total_pop):
                 name = func
                 best_rate = rate
+                total_pop = len(infos[1])
         return name

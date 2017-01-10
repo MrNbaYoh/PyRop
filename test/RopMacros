@@ -17,10 +17,16 @@ def TEST1(r0):
     add_word(r0)
 
 @pop_macro
+@macro
 def TEST2(r0):
+    put_label("TEST")
+    add_word(TEST)
+    add_word(1)
+
+@pop_macro
+def TEST3(r0, r4):
     add_word(r0)
-    add_word(r0)
-    add_word(r0)
+    add_word(1)
 
 @pop_macro
 def TEST(r7):
