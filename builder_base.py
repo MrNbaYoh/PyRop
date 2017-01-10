@@ -1,54 +1,59 @@
 import traceback
 import os
 import sys
-from chain import Chain
-from builder_module import *
+
+modules_user_functions = dict()
 
 
-def create_builder(name, *bases):
-    def init(self):
-        for base in bases:
-            base.__init__(self)
-    builder = type(name, tuple(bases), {"__init__": init})
-    return builder()
+def user_function(func):
+    infos = func.__qualname__.rsplit('.', 1)
+    modules_user_functions.setdefault(infos[0], dict())
+    modules_user_functions[infos[0]][infos[1]] = func
+    return func
 
 
-class IncludeModule(BuilderModule):
+class BaseBuilder:
+    @classmethod
+    def create(cls, name, *modules):
+        def init(self):
+            super(builder, self).__init__()
+
+        builder = type(name, tuple(modules) + (cls,), {"__init__": init})
+        return builder()
+
+    def __new__(cls, *args, **kwargs):
+        instance = object.__new__(cls)
+        instance.chain = None
+        instance.loaded = False
+        instance.built = False
+        instance.user_functions = dict()
+        return instance
+
+    def __init__(self):
+        for base in reversed(self.__class__.__mro__):
+            base_user_func = modules_user_functions.get(base.__qualname__, dict())
+            self.user_functions.update({name: base.__dict__[name].__get__(self, self.__class__)
+                                        for name, func in base_user_func.items()})
+
+    def append(self, other):
+        pass
+
+    def load(self, file):
+        pass
+
+    def build(self, file):
+        pass
+
+
+class BasicBuilder(BaseBuilder):
     def __init__(self):
         super().__init__()
-        self.current_path = ""
-
-    def set_base_path(self, base_path):
-        self.current_path = os.path.dirname(os.path.abspath(base_path))
-
-    @user_function
-    def include(self, incfile: str):
-
-        old = self.current_path
-        self.current_path = os.path.join(old, os.path.dirname(incfile))
-
-        path = os.path.join(self.current_path, os.path.basename(incfile))
-
-        try:
-            exec(compile(open(path, "rb").read(), path, 'exec'), self.user_functions)
-        except Exception as err:
-            print("An exception occured while building: ", file=sys.stderr)
-            lines = traceback.format_exc(None, err).splitlines()
-            print("  " + lines[-1], file=sys.stderr)
-            for l in lines[3:-1]:
-                print(l, file=sys.stderr)
-            exit(1)
-
-        self.current_path = old
-
-
-class BaseBuilder(IncludeModule):
-    def __init__(self):
-        super().__init__()
-        self.chain = Chain()
+        self.chain = []
 
     def append(self, bytes_l):
-        self.chain.append(bytes_l)
+        if not self.loaded:
+            return
+        self.chain += bytes_l
 
     def add_value(self, word: int, byte_size: int = 4):
         if byte_size < 1:
@@ -111,18 +116,35 @@ class BaseBuilder(IncludeModule):
         self.append([c for c in string.encode(encoding)])
 
     def build(self, file):
-        if self.chain.built:
+        if self.built:
             raise PermissionError("You cannot build multiple times!")
 
-        if not self.chain.loaded:
+        if not self.loaded:
             self.load(file)
 
-        self.include(file)
-        self.chain.built = True
+        try:
+            exec(compile(open(file, "rb").read(), file, 'exec'), self.user_functions)
+        except Exception as err:
+            print("An exception occured while building: ", file=sys.stderr)
+            lines = traceback.format_exc(None, err).splitlines()
+            print("  " + lines[-1], file=sys.stderr)
+            for l in lines[3:-1]:
+                print(l, file=sys.stderr)
+            exit(1)
+
+        self.built = True
 
     def load(self, file):
-        if self.chain.loaded:
+        if self.loaded:
             return
 
-        self.include(file)
-        self.chain.loaded = True
+        try:
+            exec(compile(open(file, "rb").read(), file, 'exec'), self.user_functions)
+        except Exception as err:
+            print("An exception occured while building: ", file=sys.stderr)
+            lines = traceback.format_exc(None, err).splitlines()
+            print("  " + lines[-1], file=sys.stderr)
+            for l in lines[3:-1]:
+                print(l, file=sys.stderr)
+            exit(1)
+        self.loaded = True

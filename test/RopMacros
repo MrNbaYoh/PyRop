@@ -9,11 +9,17 @@ def POP_R0PC(r0):
 
 @macro
 def POP_POP(r7):
-    add_word(Label)
+    add_word(1)
 
 @pop_macro
 def TEST1(r0):
     add_word(0x10101010)
+    add_word(r0)
+
+@pop_macro
+def TEST2(r0):
+    add_word(r0)
+    add_word(r0)
     add_word(r0)
 
 @pop_macro

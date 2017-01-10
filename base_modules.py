@@ -1,5 +1,43 @@
-from builder_base import BaseBuilder
-from builder_module import user_function
+from builder_base import user_function, BaseBuilder
+from ast import *
+from inspect import *
+import traceback
+
+# def get_module(builder, module):
+#     return type(module.__name__ + builder.__name__, (module, builder,), dict(module.__dict__))
+
+
+class IncludeModule(BaseBuilder):
+    def __init__(self):
+        super().__init__()
+        self.current_path = ""
+
+    def set_current_path(self, base_path):
+        self.current_path = os.path.dirname(os.path.abspath(base_path))
+
+    @user_function
+    def include(self, incfile: str):
+
+        old = self.current_path
+        self.current_path = os.path.join(old, os.path.dirname(incfile))
+
+        path = os.path.join(self.current_path, os.path.basename(incfile))
+
+        try:
+            exec(compile(open(path, "rb").read(), path, 'exec'), self.user_functions)
+        except Exception as err:
+            print("An exception occured while building: ", file=sys.stderr)
+            lines = traceback.format_exc(None, err).splitlines()
+            print("  " + lines[-1], file=sys.stderr)
+            for l in lines[3:-1]:
+                print(l, file=sys.stderr)
+            exit(1)
+
+        self.current_path = old
+
+    def load(self, file):
+        self.set_current_path(file)
+        super().load(file)
 
 
 class AreaModule(BaseBuilder):
@@ -14,13 +52,13 @@ class AreaModule(BaseBuilder):
 
     @user_function
     def begin_area(self, size):
-        if not self.chain.loaded:
+        if not self.loaded:
             return
         self.areas.append((len(self.chain), size))
 
     @user_function
     def end_area(self):
-        if not self.chain.loaded:
+        if not self.loaded:
             return
         self.areas.pop()
 
@@ -103,13 +141,11 @@ class Macro:
         self.current_instance += 1
         return self.instance_contexts[self.current_instance - 1]
 
-from ast import *
-from inspect import *
 
 class LabelModule(BaseBuilder):
     def __init__(self):
         super().__init__()
-
+        self.stack_pointer = 0
         self.context_stack = []
 
         self.global_context = dict()
@@ -117,14 +153,17 @@ class LabelModule(BaseBuilder):
 
         self.macros = dict()
 
+    def append(self, other):
+        if not self.loaded:
+            self.stack_pointer += len(other)
+        super().append(other)
+
+    @user_function
+    def set_stack_pointer(self, sp: int):
+        self.stack_pointer = sp
+
     def load(self, file):
-        tree = parse(open(file).read(), "<ast>", 'exec')
-        for node in walk(tree):
-            if isinstance(node, Call) and node.func.id == "put_label" and node.args and isinstance(node.args[0], Str):
-                name = node.args[0].s
-                if name in self.global_context:
-                    raise NameError("Label name already used!")
-                self.global_context.setdefault(name, 0)
+        self.parse_labels(open(file).read())
         self.user_functions.update(self.global_context)
         super().load(file)
         self.user_functions.update(self.global_context)
@@ -137,11 +176,11 @@ class LabelModule(BaseBuilder):
         :param address: label address
         :return: None
         """
-        if self.chain.loaded:
+        if self.loaded:
             return
 
         if address is None:
-            address = self.chain.get_sp()
+            address = self.stack_pointer
         elif address.bit_length() > 32:
             raise ValueError("Label address should be 32 bits long!")
 
@@ -213,6 +252,16 @@ class LabelModule(BaseBuilder):
     def get_label(self, name: str):
         return self[name]
 
+    def parse_labels(self, source):
+        tree = parse(source, "<ast>", 'exec')
+        for node in walk(tree):
+            if isinstance(node, Call) and node.func.id == "put_label" and node.args and isinstance(node.args[0],
+                                                                                                   Str):
+                name = node.args[0].s
+                if name in self.current_context:
+                    raise NameError("Label name already used!")
+                self.current_context.setdefault(name, 0)
+
     @user_function
     def macro(self, func):
         """
@@ -223,22 +272,18 @@ class LabelModule(BaseBuilder):
         self.register_macro(func.__name__)
 
         def wrapper(*args, **kwargs):
-            if not self.chain.loaded:
+            old = func.__globals__.copy()
+            for key in self.current_context.keys():
+                del func.__globals__[key]
+
+            if not self.loaded:
                 self.add_macro_context(func.__name__)
                 self.switch_context(self.macros[func.__name__].get_last_instance())
-                tree = parse(getsource(func), "<ast>", 'exec')
-                for node in walk(tree):
-                    if isinstance(node, Call) and node.func.id == "put_label" and node.args and isinstance(node.args[0],
-                                                                                                           Str):
-                        name = node.args[0].s
-                        if name in self.current_context:
-                            raise NameError("Label name already used!")
-                        self.current_context.setdefault(name, 0)
+                self.parse_labels(getsource(func))
 
             else:
                 self.switch_context(self.macros[func.__name__].get_next_instance())
 
-            old = func.__globals__.copy()
             func.__globals__.update(self.current_context)
             func(*args, **kwargs)
             func.__globals__.clear()
@@ -246,6 +291,7 @@ class LabelModule(BaseBuilder):
 
             self.restore_context()
 
+        wrapper.original = func.original if hasattr(func, 'original') else func
         return wrapper
 
 
@@ -253,13 +299,28 @@ class PopModule(BaseBuilder):
     def __init__(self):
         super().__init__()
         self.pop_macros = dict()
+        self.current_count = 0
+
+    def append_stub(self, other):
+            self.current_count += len(other)
 
     @user_function
     def pop_macro(self, func):
-        args = func.__code__.co_varnames
+        wrapped_func = func
+        original_func = func.original if hasattr(func, 'original') else func
+
+        args = signature(original_func).parameters.keys()
         if set(args) - {"r"+str(i) for i in range(16)}:
             raise Exception("Non register argument found in pop_macro!")
-        self.pop_macros[func.__name__] = (func, set(args))
+
+        self.current_count = 0
+        append = self.append
+        self.append = self.append_stub
+
+        wrapped_func(**({name: 0 for name in args}))
+        self.append = append
+
+        self.pop_macros[original_func.__name__] = (func, set(args), self.current_count)
         return func
 
     @user_function
@@ -275,16 +336,21 @@ class PopModule(BaseBuilder):
                 raise Exception("Could not find pop_macro to pop register(s): " + str(reg_set))
             reg_set -= self.pop_macros[pop_stack[-1]][1]
         for func in pop_stack:
-            candidates[func][0](**{reg: value for reg, value in registers.items() if reg in candidates[func][1]})
+            candidates[func][0](**{reg: registers.get(reg, None) for  reg in candidates[func][1]})
+        print(pop_stack)
 
-    def find_best(self, candidates, regs):
+    @staticmethod
+    def find_best(candidates, regs):
         maxi = 0
         name = None
+        best_rate = 0
         for func, infos in candidates.items():
             nb = len(regs & infos[1])
+            rate = nb/infos[2]
             if nb == 0:
                 continue
-            if nb > maxi or (nb == maxi and len(candidates[name][1]) > len(candidates[func][1])):
+            if (nb >= maxi) and best_rate <= rate:
                 maxi = nb
                 name = func
+                best_rate = rate
         return name
