@@ -132,10 +132,10 @@ class BasicBuilder(BaseBuilder):
             self.load(file)
 
         old = os.getcwd()
-        sys.path.append(os.path.dirname(file))  # for module import that aren't "include" call
+        sys.path.append(os.path.dirname(os.path.abspath(file)))  # for module import that aren't "include" call
         try:
             content = open(file, "rb").read()
-            os.chdir(os.path.dirname(file))  # set the current working directory, for open() etc.
+            os.chdir(os.path.dirname(os.path.abspath(file)))  # set the current working directory, for open() etc.
             exec(compile(content, file, 'exec'), self.user_functions)
         except Exception as err:
             print("An exception occured while building: ", file=sys.stderr)
@@ -146,18 +146,18 @@ class BasicBuilder(BaseBuilder):
             exit(1)
 
         os.chdir(old)
-        sys.path.remove(os.path.dirname(file))
+        sys.path.remove(os.path.dirname(os.path.abspath(file)))
         self.built = True
 
     def load(self, file):
         if self.loaded:
             return
 
-        sys.path.append(os.path.dirname(file))  # for module import that aren't "include" call
+        sys.path.append(os.path.dirname(os.path.abspath(file)))  # for module import that aren't "include" call
         old = os.getcwd()
         try:
             content = open(file, "rb").read()
-            os.chdir(os.path.dirname(file))  # set the current working directory, for open() etc.
+            os.chdir(os.path.dirname(os.path.abspath(file)))  # set the current working directory, for open() etc.
             exec(compile(content, file, 'exec'), self.user_functions)
         except Exception as err:
             print("An exception occured while loading: ", file=sys.stderr)
@@ -168,6 +168,6 @@ class BasicBuilder(BaseBuilder):
             exit(1)
 
         os.chdir(old)
-        sys.path.remove(os.path.dirname(file))
+        sys.path.remove(os.path.dirname(os.path.abspath(file)))
         self.loaded = True
         self.mem_offset = 0
