@@ -24,6 +24,7 @@ class BaseBuilder:
     def __new__(cls, *args, **kwargs):
         instance = object.__new__(cls)
         instance.chain = None
+        instance.mem_offset = 0
         instance.loaded = False
         instance.built = False
         instance.user_functions = dict()
@@ -34,6 +35,9 @@ class BaseBuilder:
             base_user_func = modules_user_functions.get(base.__qualname__, dict())
             self.user_functions.update({name: base.__dict__[name].__get__(self, self.__class__)
                                         for name, func in base_user_func.items()})
+
+    def set_mem_offset(self, offset):
+        pass
 
     def append(self, other):
         pass
@@ -49,11 +53,16 @@ class BasicBuilder(BaseBuilder):
     def __init__(self):
         super().__init__()
         self.chain = []
+        self.mem_offset = 0
+
+    @user_function
+    def set_mem_offset(self, offset: int):
+        self.mem_offset = offset
 
     def append(self, bytes_l):
-        if not self.loaded:
-            return
-        self.chain += bytes_l
+        self.mem_offset += len(bytes_l)
+        if self.loaded:
+            self.chain += bytes_l
 
     def add_value(self, word: int, byte_size: int = 4):
         if byte_size < 1:
@@ -83,10 +92,10 @@ class BasicBuilder(BaseBuilder):
 
     @user_function
     def org(self, address: int):
-        if address < self.chain.get_sp():
+        if address < self.mem_offset:
             raise ValueError("Trying to ORG backwards!")
 
-        self.append([0x0 for i in range(address - self.chain.get_sp())])
+        self.append([0x0 for i in range(address - self.mem_offset)])
 
     @user_function
     def align(self, value: int):
@@ -150,3 +159,4 @@ class BasicBuilder(BaseBuilder):
                 print(l, file=sys.stderr)
             exit(1)
         self.loaded = True
+        self.mem_offset = 0

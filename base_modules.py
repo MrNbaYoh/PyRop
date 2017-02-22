@@ -145,22 +145,12 @@ class Macro:
 class LabelModule(BaseBuilder):
     def __init__(self):
         super().__init__()
-        self.stack_pointer = 0
         self.context_stack = []
 
         self.global_context = dict()
         self.current_context = self.global_context
 
         self.macros = dict()
-
-    def append(self, other):
-        if not self.loaded:
-            self.stack_pointer += len(other)
-        super().append(other)
-
-    @user_function
-    def set_stack_pointer(self, sp: int):
-        self.stack_pointer = sp
 
     def load(self, file):
         self.parse_labels(open(file).read())
@@ -180,7 +170,7 @@ class LabelModule(BaseBuilder):
             return
 
         if address is None:
-            address = self.stack_pointer
+            address = self.mem_offset
         elif address.bit_length() > 32:
             raise ValueError("Label address should be 32 bits long!")
 
