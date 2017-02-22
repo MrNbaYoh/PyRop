@@ -131,8 +131,11 @@ class BasicBuilder(BaseBuilder):
         if not self.loaded:
             self.load(file)
 
+        sys.path.append(os.path.dirname(file))  # for module import that aren't "include" call
         try:
-            exec(compile(open(file, "rb").read(), file, 'exec'), self.user_functions)
+            content = open(file, "rb").read()
+            os.chdir(os.path.dirname(file))  # set the current working directory, for open() etc.
+            exec(compile(content, file, 'exec'), self.user_functions)
         except Exception as err:
             print("An exception occured while building: ", file=sys.stderr)
             lines = traceback.format_exc(None, err).splitlines()
@@ -141,16 +144,18 @@ class BasicBuilder(BaseBuilder):
                 print(l, file=sys.stderr)
             exit(1)
 
+        sys.path.remove(os.path.dirname(file))
         self.built = True
 
     def load(self, file):
-        os.chdir(os.path.dirname(file)) #set the current working directory, for open() etc.
-        sys.path.append(os.path.dirname(file)) #for module import that aren't "include" call
         if self.loaded:
             return
 
+        sys.path.append(os.path.dirname(file))  # for module import that aren't "include" call
         try:
-            exec(compile(open(file, "rb").read(), file, 'exec'), self.user_functions)
+            content = open(file, "rb").read()
+            os.chdir(os.path.dirname(file))  # set the current working directory, for open() etc.
+            exec(compile(content, file, 'exec'), self.user_functions)
         except Exception as err:
             print("An exception occured while loading: ", file=sys.stderr)
             lines = traceback.format_exc(None, err).splitlines()
@@ -158,5 +163,7 @@ class BasicBuilder(BaseBuilder):
             for l in lines[3:-1]:
                 print(l, file=sys.stderr)
             exit(1)
+
+        sys.path.remove(os.path.dirname(file))
         self.loaded = True
         self.mem_offset = 0

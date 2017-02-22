@@ -22,9 +22,12 @@ class IncludeModule(BaseBuilder):
         self.current_path = os.path.join(old, os.path.dirname(incfile))
 
         path = os.path.join(self.current_path, os.path.basename(incfile))
+        sys.path.append(self.current_path)
 
         try:
-            exec(compile(open(path, "rb").read(), path, 'exec'), self.user_functions)
+            content = open(path, "rb").read()
+            os.chdir(self.current_path)  # set the current working directory, for open() etc.
+            exec(compile(content, path, 'exec'), self.user_functions)
         except Exception as err:
             print("An exception occured while building: ", file=sys.stderr)
             lines = traceback.format_exc(None, err).splitlines()
@@ -33,6 +36,8 @@ class IncludeModule(BaseBuilder):
                 print(l, file=sys.stderr)
             exit(1)
 
+        sys.path.remove(self.current_path)
+        os.chdir(old)
         self.current_path = old
 
     def load(self, file):

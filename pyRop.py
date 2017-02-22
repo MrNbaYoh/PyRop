@@ -9,7 +9,6 @@ if len(cmdargs) != 3:
 
 builder = BasicBuilder.create('Test', IncludeModule, AreaModule, LabelModule, PopModule)
 builder.build(cmdargs[1])
-print(builder.chain)
 
 os.makedirs(os.path.dirname(os.path.abspath(cmdargs[2])), exist_ok=True)
 output_file = open(cmdargs[2], 'wb')
