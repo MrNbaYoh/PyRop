@@ -131,6 +131,7 @@ class BasicBuilder(BaseBuilder):
         if not self.loaded:
             self.load(file)
 
+        old = os.getcwd()
         sys.path.append(os.path.dirname(file))  # for module import that aren't "include" call
         try:
             content = open(file, "rb").read()
@@ -144,6 +145,7 @@ class BasicBuilder(BaseBuilder):
                 print(l, file=sys.stderr)
             exit(1)
 
+        os.chdir(old)
         sys.path.remove(os.path.dirname(file))
         self.built = True
 
@@ -152,6 +154,7 @@ class BasicBuilder(BaseBuilder):
             return
 
         sys.path.append(os.path.dirname(file))  # for module import that aren't "include" call
+        old = os.getcwd()
         try:
             content = open(file, "rb").read()
             os.chdir(os.path.dirname(file))  # set the current working directory, for open() etc.
@@ -164,6 +167,7 @@ class BasicBuilder(BaseBuilder):
                 print(l, file=sys.stderr)
             exit(1)
 
+        os.chdir(old)
         sys.path.remove(os.path.dirname(file))
         self.loaded = True
         self.mem_offset = 0
