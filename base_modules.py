@@ -255,12 +255,15 @@ class LabelModule(BaseBuilder):
     def parse_labels(self, source):
         tree = parse(source, "<ast>", 'exec')
         for node in walk(tree):
-            if isinstance(node, Call) and node.func.id == "put_label" and node.args and isinstance(node.args[0],
-                                                                                                   Str):
-                name = node.args[0].s
-                if name in self.current_context:
-                    raise NameError("Label name already used!")
-                self.current_context.setdefault(name, 0)
+            if isinstance(node, Call):
+                id = node.func.id if isinstance(node.func, Name) else node.func.attr
+                if id == "put_label" and node.args and isinstance(node.args[0], Str):
+                    name = node.args[0].s
+                    if name in self.current_context:
+                        raise NameError("Label name already used!")
+                    self.current_context.setdefault(name, 0)
+
+
 
     @user_function
     def macro(self, func):

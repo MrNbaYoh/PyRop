@@ -135,13 +135,15 @@ class BasicBuilder(BaseBuilder):
         self.built = True
 
     def load(self, file):
+        os.chdir(os.path.dirname(file)) #set the current working directory, for open() etc.
+        sys.path.append(os.path.dirname(file)) #for module import that aren't "include" call
         if self.loaded:
             return
 
         try:
             exec(compile(open(file, "rb").read(), file, 'exec'), self.user_functions)
         except Exception as err:
-            print("An exception occured while building: ", file=sys.stderr)
+            print("An exception occured while loading: ", file=sys.stderr)
             lines = traceback.format_exc(None, err).splitlines()
             print("  " + lines[-1], file=sys.stderr)
             for l in lines[3:-1]:

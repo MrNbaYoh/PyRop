@@ -11,7 +11,7 @@ builder = BasicBuilder.create('Test', IncludeModule, AreaModule, LabelModule, Po
 builder.build(cmdargs[1])
 print(builder.chain)
 
-os.makedirs(os.path.dirname(cmdargs[2]), exist_ok=True)
+os.makedirs(os.path.dirname(os.path.abspath(cmdargs[2])), exist_ok=True)
 output_file = open(cmdargs[2], 'wb')
 output_file.write(bytes(builder.chain))
 output_file.close()
