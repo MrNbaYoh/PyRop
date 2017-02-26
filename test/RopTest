@@ -13,3 +13,8 @@ add_word(0xFFFFFFFF)
 end_area()
 add_ascii("TEST")
 pop(r0=0, r7=0)
+
+add_ascii("T")
+align(4)
+put_label("toto")
+print(toto)
